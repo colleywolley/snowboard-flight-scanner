@@ -5,18 +5,18 @@ Uses SerpApi's multi-airport support (departure_id="MKE,ORD,MDW", arrival_id="DE
 so each date window only uses 1 API search credit (6 credits per run, preserving your 250 free searches).
 """
 
+#!/usr/bin/env python3
 import json
 import os
 from pathlib import Path
 import urllib.parse
 import urllib.request
 
-# Target "Low Price" Round-Trip Thresholds (USD per person)
 LOW_PRICE_THRESHOLDS = {
-    "DEN": 250,  # Typical nonstop is $270-$330; <$250 RT is a strong deal
-    "PDX": 270,  # Typical nonstop is $278-$350; <$270 RT is a strong deal
-    "HDN": 360,  # Typical RT is $379-$490; <$360 RT is a strong deal
-    "ASE": 420,  # Typical RT is $433-$550; <$420 RT is a strong deal
+    "DEN": 250,
+    "PDX": 270,
+    "HDN": 360,
+    "ASE": 420,
 }
 
 ORIGINS = "MKE,ORD,MDW"
@@ -35,11 +35,6 @@ STATE_FILE = Path(__file__).parent / "price_history.json"
 
 
 def fetch_weekend_fares(api_key: str, dep: str, ret: str) -> dict[str, dict]:
-    """
-    Queries all origins (MKE,ORD,MDW) to all destinations (DEN,PDX,HDN,ASE)
-    in a single SerpApi call for the given date window, returning the lowest
-    fare found per (origin, destination) pair.
-    """
     params = urllib.parse.urlencode({
         "engine": "google_flights",
         "departure_id": ORIGINS,
@@ -88,13 +83,21 @@ def send_webhook(webhook_url: str, message: str) -> None:
     if not webhook_url:
         print(message)
         return
-    payload = json.dumps({"content": message, "text": message}).encode("utf-8")
-    req = urllib.request.Request(
-        webhook_url,
-        data=payload,
-        headers={"Content-Type": "application/json", "User-Agent": "SnowboardFlightScanner/1.0"},
-        method="POST",
-    )
+    if "ntfy.sh/" in webhook_url:
+        req = urllib.request.Request(
+            webhook_url,
+            data=message.encode("utf-8"),
+            headers={"Title": "Snowboarding Flight Price Alert", "User-Agent": "SnowboardFlightScanner/1.0"},
+            method="POST",
+        )
+    else:
+        payload = json.dumps({"content": message, "text": message}).encode("utf-8")
+        req = urllib.request.Request(
+            webhook_url,
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "SnowboardFlightScanner/1.0"},
+            method="POST",
+        )
     urllib.request.urlopen(req, timeout=10)
 
 

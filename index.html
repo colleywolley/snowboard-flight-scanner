@@ -1,311 +1,3 @@
-Conversation Log
-name: 6-Hour Snowboarding Flight Price Scanner
-
-on:
-  schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours
-  workflow_dispatch:      # Allows manual trigger anytime
-
-jobs:
-  scan-flights:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Run 6-Hour Flight Scanner
-        env:
-          SERPAPI_KEY: ${{ secrets.6aee5b122985bd822b3a6da169c67958c47df16f7258ab47f61d1346481e718c }}
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: python3 flight_price_scanner.py
-
-      - name: Save Updated Price History
-        run: |
-          if git status --porcelain | grep -q "price_history.json"; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add price_history.json
-            git commit -m "Update flight price history"
-            git push
-          
-
-is the api in the right place
-
-Almost! Two quick fixes:
-
-Don't put the raw API key after secrets. — In GitHub Actions, ${{ secrets.SERPAPI_KEY }} tells GitHub to look up a secret named SERPAPI_KEY from your repo's Settings → Secrets page. Putting the raw numbers inside ${{ secrets.6aee... }} will cause a syntax error (and exposes your key if your repo is public).
-The last line (fi) at the very bottom got cut off when copying.
-How to Set It Up Properly
-1. Paste this exact text into .github/workflows/flight_scanner.yml
-
-Leave SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }} exactly as written below (with fi at the end):
-
-yaml
-name: 6-Hour Snowboarding Flight Price Scanner
-on:
-  schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours
-  workflow_dispatch:      # Allows manual trigger anytime
-jobs:
-  scan-flights:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Run 6-Hour Flight Scanner
-        env:
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: python3 flight_price_scanner.py
-      - name: Save Updated Price History
-        run: |
-          if git status --porcelain | grep -q "price_history.json"; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add price_history.json
-            git commit -m "Update flight price history"
-            git push
-          fi
-2. Put your API key in GitHub's Encrypted Secrets box instead
-Go to: https://github.com/colleywolley/snowboard-flight-scanner/settings/secrets/actions
-Click the green New repository secret button:
-Name: SERPAPI_KEY
-Secret: 6aee5b122985bd822b3a6da169c67958c47df16f7258ab47f61d1346481e718c
-Click Add secret.
-Click New repository secret a second time for your push notifications:
-Name: ALERT_WEBHOOK_URL
-Secret: https://ntfy.sh/colleywolley-alex-snow-2026 (or your Discord/Slack webhook URL)
-Click Add secret.
-3. Create flight_price_scanner.py in your repo
-
-In case you need the Python script handy to paste into a new file named flight_price_scanner.py at the root of your repo, here is the full code:
-
-python
-#!/usr/bin/env python3
-import json
-import os
-from pathlib import Path
-import urllib.parse
-import urllib.request
-LOW_PRICE_THRESHOLDS = {
-    "DEN": 250,
-    "PDX": 270,
-    "HDN": 360,
-    "ASE": 420,
-}
-ORIGINS = "MKE,ORD,MDW"
-DESTINATIONS = "DEN,PDX,HDN,ASE"
-WEEKENDS = [
-    ("2026-12-02", "2026-12-06", "Early Dec (Wed-Sun)"),
-    ("2026-12-03", "2026-12-07", "Early Dec (Thu-Mon)"),
-    ("2026-12-09", "2026-12-13", "Mid Dec (Wed-Sun)"),
-    ("2026-12-10", "2026-12-14", "Mid Dec (Thu-Mon)"),
-    ("2026-12-16", "2026-12-20", "Pre-Xmas (Wed-Sun)"),
-    ("2026-12-17", "2026-12-21", "Pre-Xmas (Thu-Mon)"),
-]
-STATE_FILE = Path(__file__).parent / "price_history.json"
-def fetch_weekend_fares(api_key: str, dep: str, ret: str) -> dict[str, dict]:
-    params = urllib.parse.urlencode({
-        "engine": "google_flights",
-        "departure_id": ORIGINS,
-        "arrival_id": DESTINATIONS,
-        "outbound_date": dep,
-        "return_date": ret,
-        "adults": 2,
-        "currency": "USD",
-        "hl": "en",
-        "api_key": api_key,
-    })
-    url = f"https://serpapi.com/search.json?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": "SnowboardFlightScanner/1.0"})
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    flights = (data.get("best_flights") or []) + (data.get("other_flights") or [])
-    best_by_route: dict[str, dict] = {}
-    for item in flights:
-        total_price = item.get("price")
-        legs = item.get("flights") or []
-        if not total_price or not legs:
-            continue
-        orig = legs[0].get("departure_airport", {}).get("id", "UNK")
-        dest = legs[-1].get("arrival_airport", {}).get("id", "UNK")
-        airline = legs[0].get("airline", "Unknown")
-        stops = max(0, len(legs) - 1)
-        route_key = f"{orig}-{dest}"
-        if route_key not in best_by_route or total_price < best_by_route[route_key]["price_total_2_adults"]:
-            best_by_route[route_key] = {
-                "orig": orig,
-                "dest": dest,
-                "price_total_2_adults": total_price,
-                "price_per_person": round(total_price / 2),
-                "airline": airline,
-                "stops": stops,
-            }
-    return best_by_route
-def send_webhook(webhook_url: str, message: str) -> None:
-    if not webhook_url:
-        print(message)
-        return
-    if "ntfy.sh/" in webhook_url:
-        req = urllib.request.Request(
-            webhook_url,
-            data=message.encode("utf-8"),
-            headers={"Title": "Snowboarding Flight Price Alert", "User-Agent": "SnowboardFlightScanner/1.0"},
-            method="POST",
-        )
-    else:
-        payload = json.dumps({"content": message, "text": message}).encode("utf-8")
-        req = urllib.request.Request(
-            webhook_url,
-            data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": "SnowboardFlightScanner/1.0"},
-            method="POST",
-        )
-    urllib.request.urlopen(req, timeout=10)
-def main() -> None:
-    api_key = os.environ.get("SERPAPI_KEY", "")
-    webhook_url = os.environ.get("ALERT_WEBHOOK_URL", "")
-    if not api_key:
-        print("Set SERPAPI_KEY environment variable to query live Google Flights data.")
-        return
-    history = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
-    alerts = []
-    for dep, ret, label in WEEKENDS:
-        best_by_route = fetch_weekend_fares(api_key, dep, ret)
-        for route_key, result in best_by_route.items():
-            orig = result["orig"]
-            dest = result["dest"]
-            key = f"{route_key}_{dep}_{ret}"
-            pp = result["price_per_person"]
-            prev = history.get(key, {}).get("price_per_person")
-            threshold = LOW_PRICE_THRESHOLDS.get(dest, 300)
-            stops_str = "Nonstop" if result["stops"] == 0 else f"{result['stops']} stop"
-            if prev is not None and pp != prev:
-                diff = pp - prev
-                direction = f"DROPPED by ${abs(diff)}" if diff < 0 else f"rose by ${diff}"
-                alerts.append(
-                    f"📊 **{orig} → {dest}** ({label}: {dep} to {ret}) {direction}: "
-                    f"now **${pp}/person** (${result['price_total_2_adults']} for 2) on {result['airline']} ({stops_str})"
-                )
-            elif pp <= threshold:
-                alerts.append(
-                    f"🔥 **LOW PRICE ALERT: {orig} → {dest}** ({label}: {dep} to {ret}) is **${pp}/person** "
-                    f"(below ${threshold} target!) on {result['airline']} ({stops_str})"
-                )
-            history[key] = result
-    STATE_FILE.write_text(json.dumps(history, indent=2))
-    if alerts:
-        send_webhook(webhook_url, "🏂 **Snowboarding Flight Price Update**\n" + "\n".join(alerts))
-    else:
-        print("Scan complete. No price changes or new low-price threshold triggers.")
-if __name__ == "__main__":
-    main()
-ok how do I run? https://github.com/colleywolley/snowboard-flight-scanner/blob/main/flight_price_scanner.py
-
-Now that flight_price_scanner.py is in your repo, follow these 3 quick steps to run it right now on GitHub:
-
-1. Make sure .github/workflows/flight_scanner.yml is also in your repo
-Go to https://github.com/colleywolley/snowboard-flight-scanner
- and check if you see a .github/workflows folder alongside flight_price_scanner.py.
-If you only created flight_price_scanner.py so far, click Add file → Create new file, type .github/workflows/flight_scanner.yml as the file name, paste the YAML block from my previous message, and click Commit changes.
-2. Confirm your API Key is saved in Secrets
-Go to https://github.com/colleywolley/snowboard-flight-scanner/settings/secrets/actions
-Make sure you have a repository secret named SERPAPI_KEY with your SerpApi key inside it.
-(Optional for phone/web notifications) Add a second secret named ALERT_WEBHOOK_URL with https://ntfy.sh/colleywolley-alex-snow-2026 as the value (and open https://ntfy.sh/colleywolley-alex-snow-2026
- in a tab or the free ntfy phone app to receive the alerts).
-3. Click "Run workflow" in the Actions Tab
-Open https://github.com/colleywolley/snowboard-flight-scanner/actions
-On the left sidebar, click "6-Hour Snowboarding Flight Price Scanner".
-On the right side of the banner, click the "Run workflow" dropdown button, then click the green "Run workflow" button.
-Refresh the page after a few seconds—you'll see the run appear with a yellow spinning icon (turning into a green checkmark when done).
-You can click directly on that workflow run → click scan-flights to read the live price logs, and check your repo's main page afterwards to see the newly created price_history.json file with all the lowest fares! After this first manual test, GitHub will run it automatically every 6 hours.
-
-SERPAPI_KEY is set up in the exact right place!
-
-Here is what to do next from that screen:
-
-1. (Optional) Add your notification secret right there
-
-While you're on that page, click the green New repository secret button one more time so it can send push alerts to you and Alex:
-
-Name: ALERT_WEBHOOK_URL
-Secret: https://ntfy.sh/colleywolley-alex-snow-2026
-Click Add secret (you and Alex can view the live notifications anytime at https://ntfy.sh/colleywolley-alex-snow-2026
- or in the free ntfy phone app).
-2. Go to the "Actions" tab at the top
-
-Click ▶ Actions in the top navigation bar (right between Agents and Projects in your screenshot):
-
-If you see "6-Hour Snowboarding Flight Price Scanner" on the left:
-
-Click "6-Hour Snowboarding Flight Price Scanner".
-Click the "Run workflow" dropdown on the right → click the green "Run workflow" button.
-
-If you instead see a "Get started with GitHub Actions" welcome screen: That means your repo only has flight_price_scanner.py so far and still needs the .github/workflows/flight_scanner.yml file. Click this pre-filled link to create it in one step: 👉 Create .github/workflows/flight_scanner.yml on GitHub
- (The filename is already pre-filled by that link—just paste the YAML block below and click Commit changes..., then click the ▶ Actions tab again!)
-
-yaml
-name: 6-Hour Snowboarding Flight Price Scanner
-on:
-  schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours
-  workflow_dispatch:      # Allows manual trigger anytime
-jobs:
-  scan-flights:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Run 6-Hour Flight Scanner
-        env:
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: python3 flight_price_scanner.py
-      - name: Save Updated Price History
-        run: |
-          if git status --porcelain | grep -q "price_history.json"; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add price_history.json
-            git commit -m "Update flight price history"
-            git push
-          fi
-where is the data go ?
-can we take that json price history data and make a dashboard that auto updates every 6 hour refresh but also is easy to undertand, track, share
-1. Where Did the Data Go?
-
-Your first scan (#1) succeeded with a green checkmark! Here are the two places you can see the output:
-
-The saved JSON file in your repo: The workflow automatically created and committed price_history.json to your repository. Click <> Code in the top-left corner of your GitHub screen, or open it directly here: 👉 https://github.com/colleywolley/snowboard-flight-scanner/blob/main/price_history.json
-The live run log: On the screen in your screenshot, click ✅ scan-flights in the left sidebar → then click Run 6-Hour Flight Scanner to see the console printout.
-2. Your Live, Auto-Updating Flight Dashboard
-
-I built snowboard_price_dashboard.html (open in the preview panel) plus a GitHub Pages version at index.html that reads directly from your price_history.json.
-
-Right here in this workspace: Open snowboard_price_dashboard.html and click "📋 Paste JSON from GitHub" at the top right to paste the raw text of your price_history.json anytime.
-Host it as a live auto-updating website for you & Alex (Free via GitHub Pages):
-Click this pre-filled link to add index.html to your repo: 👉 Create index.html on GitHub
-Copy and paste the contents of index.html into that editor and click Commit changes....
-Go to https://github.com/colleywolley/snowboard-flight-scanner/settings/pages
- → under Build and deployment → Branch, change None to main and click Save.
-In ~30 seconds, your live dashboard will be hosted at https://colleywolley.github.io/snowboard-flight-scanner/—you can send that link to Alex, and it will automatically pull the newest price_history.json after every 6-hour scan!
-Snowboard Price Dashboard
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -316,6 +8,7 @@ Snowboard Price Dashboard
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased min-h-screen p-4 md:p-6">
   <div class="max-w-6xl mx-auto space-y-5">
+
     <!-- Header & Live Sync Banner -->
     <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-4">
       <div>
@@ -329,6 +22,7 @@ Snowboard Price Dashboard
           Auto-syncs with <span class="font-mono">colleywolley/snowboard-flight-scanner/price_history.json</span> every 6-hour scan • Prices shown for 2 Adults (You + Alex)
         </p>
       </div>
+
       <div class="flex flex-wrap items-center gap-2 text-xs">
         <button id="refreshBtn" class="px-3 py-1.5 rounded border border-slate-700 bg-slate-800 hover:bg-slate-700 font-medium transition">
           ↻ Sync Latest JSON
@@ -338,8 +32,10 @@ Snowboard Price Dashboard
         </button>
       </div>
     </div>
+
     <!-- 4 Destination Best-Price Cards -->
     <div id="destCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+
     <!-- Filter & Search Controls -->
     <div class="bg-slate-900 border border-slate-800 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="flex flex-wrap items-center gap-2">
@@ -353,12 +49,14 @@ Snowboard Price Dashboard
           <option value="2026-12-16_2026-12-20">Pre-Xmas: Wed Dec 16 – Sun Dec 20</option>
           <option value="2026-12-17_2026-12-21">Pre-Xmas: Thu Dec 17 – Mon Dec 21</option>
         </select>
+
         <label class="text-slate-400 font-medium ml-1">Pattern:</label>
         <select id="filterPattern" class="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs">
           <option value="ALL">Wed–Sun & Thu–Mon</option>
           <option value="Wed-Sun">Wed–Sun only</option>
           <option value="Thu-Mon">Thu–Mon only</option>
         </select>
+
         <label class="text-slate-400 font-medium ml-1">From:</label>
         <select id="filterOrig" class="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs">
           <option value="ALL">All Origins (MKE, ORD, MDW)</option>
@@ -366,6 +64,7 @@ Snowboard Price Dashboard
           <option value="ORD">ORD (Chicago O'Hare)</option>
           <option value="MDW">MDW (Chicago Midway)</option>
         </select>
+
         <label class="text-slate-400 font-medium ml-1">To:</label>
         <select id="filterDest" class="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs">
           <option value="ALL">All Mountains (DEN, PDX, HDN, ASE)</option>
@@ -375,3 +74,347 @@ Snowboard Price Dashboard
           <option value="ASE">ASE (Aspen Snowmass)</option>
         </select>
       </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input type="checkbox" id="filterNonstop" class="accent-sky-500" />
+          <span>Nonstop only</span>
+        </label>
+        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input type="checkbox" id="filterDealsOnly" class="accent-sky-500" />
+          <span>🔥 Below Target Price only</span>
+        </label>
+        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input type="checkbox" id="filterStarred" class="accent-sky-500" />
+          <span>⭐ Shortlisted</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Main Flights Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+      <div class="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs">
+        <span id="tableCountText" class="font-semibold">Showing flights</span>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400">Sort by:</span>
+          <select id="sortBy" class="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs">
+            <option value="price_asc">Lowest Price First</option>
+            <option value="deal_score">Best Deal vs. Target</option>
+            <option value="date_asc">Weekend Date</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-slate-800 text-slate-400 bg-slate-950">
+              <th class="py-2.5 px-3 w-8">⭐</th>
+              <th class="py-2.5 px-3">Route</th>
+              <th class="py-2.5 px-3">Weekend Dates</th>
+              <th class="py-2.5 px-3">Airline & Stops</th>
+              <th class="py-2.5 px-3">Per Person (RT)</th>
+              <th class="py-2.5 px-3">Total (You + Alex)</th>
+              <th class="py-2.5 px-3">6-Hr Change / Status</th>
+              <th class="py-2.5 px-3 text-right">Book / Verify</th>
+            </tr>
+          </thead>
+          <tbody id="flightsTableBody" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const TARGETS = {
+      DEN: { name: 'Denver (I-70 Resorts)', target: 250, typical: '270–350', resorts: 'Breck, Vail, Keystone, Winter Park, Copper' },
+      PDX: { name: 'Portland (Mt. Hood)', target: 270, typical: '280–380', resorts: 'Timberline, Mt. Hood Meadows' },
+      HDN: { name: 'Hayden (Steamboat)', target: 360, typical: '380–520', resorts: 'Steamboat Ski Resort' },
+      ASE: { name: 'Aspen (Snowmass)', target: 420, typical: '440–630', resorts: 'Aspen Mountain, Snowmass, Highlands' }
+    };
+
+    const WEEKEND_META = {
+      '2026-12-02_2026-12-06': { label: 'Wed Dec 2 – Sun Dec 6', group: 'Early Dec', pattern: 'Wed-Sun', dep: '2026-12-02', ret: '2026-12-06' },
+      '2026-12-03_2026-12-07': { label: 'Thu Dec 3 – Mon Dec 7', group: 'Early Dec', pattern: 'Thu-Mon', dep: '2026-12-03', ret: '2026-12-07' },
+      '2026-12-09_2026-12-13': { label: 'Wed Dec 9 – Sun Dec 13', group: 'Mid Dec', pattern: 'Wed-Sun', dep: '2026-12-09', ret: '2026-12-13' },
+      '2026-12-10_2026-12-14': { label: 'Thu Dec 10 – Mon Dec 14', group: 'Mid Dec', pattern: 'Thu-Mon', dep: '2026-12-10', ret: '2026-12-14' },
+      '2026-12-16_2026-12-20': { label: 'Wed Dec 16 – Sun Dec 20', group: 'Pre-Xmas', pattern: 'Wed-Sun', dep: '2026-12-16', ret: '2026-12-20' },
+      '2026-12-17_2026-12-21': { label: 'Thu Dec 17 – Mon Dec 21', group: 'Pre-Xmas', pattern: 'Thu-Mon', dep: '2026-12-17', ret: '2026-12-21' }
+    };
+
+    const FALLBACK_DATA = {
+      "ORD-DEN_2026-12-02_2026-12-06": { "orig": "ORD", "dest": "DEN", "price_total_2_adults": 396, "price_per_person": 198, "airline": "United", "stops": 0 },
+      "MKE-DEN_2026-12-02_2026-12-06": { "orig": "MKE", "dest": "DEN", "price_total_2_adults": 466, "price_per_person": 233, "airline": "Southwest", "stops": 0 },
+      "MDW-DEN_2026-12-02_2026-12-06": { "orig": "MDW", "dest": "DEN", "price_total_2_adults": 436, "price_per_person": 218, "airline": "Southwest", "stops": 0 },
+      "ORD-PDX_2026-12-02_2026-12-06": { "orig": "ORD", "dest": "PDX", "price_total_2_adults": 536, "price_per_person": 268, "airline": "Alaska", "stops": 0 },
+      "ORD-HDN_2026-12-02_2026-12-06": { "orig": "ORD", "dest": "HDN", "price_total_2_adults": 708, "price_per_person": 354, "airline": "United", "stops": 1 },
+      "ORD-ASE_2026-12-02_2026-12-06": { "orig": "ORD", "dest": "ASE", "price_total_2_adults": 858, "price_per_person": 429, "airline": "United", "stops": 0 },
+      "ORD-DEN_2026-12-03_2026-12-07": { "orig": "ORD", "dest": "DEN", "price_total_2_adults": 418, "price_per_person": 209, "airline": "United", "stops": 0 },
+      "MKE-DEN_2026-12-03_2026-12-07": { "orig": "MKE", "dest": "DEN", "price_total_2_adults": 490, "price_per_person": 245, "airline": "Southwest", "stops": 0 },
+      "ORD-PDX_2026-12-03_2026-12-07": { "orig": "ORD", "dest": "PDX", "price_total_2_adults": 556, "price_per_person": 278, "airline": "American", "stops": 0 },
+      "ORD-HDN_2026-12-03_2026-12-07": { "orig": "ORD", "dest": "HDN", "price_total_2_adults": 758, "price_per_person": 379, "airline": "United", "stops": 1 },
+      "ORD-DEN_2026-12-09_2026-12-13": { "orig": "ORD", "dest": "DEN", "price_total_2_adults": 410, "price_per_person": 205, "airline": "United", "stops": 0 },
+      "MKE-DEN_2026-12-09_2026-12-13": { "orig": "MKE", "dest": "DEN", "price_total_2_adults": 544, "price_per_person": 272, "airline": "Southwest", "stops": 0 },
+      "MDW-DEN_2026-12-09_2026-12-13": { "orig": "MDW", "dest": "DEN", "price_total_2_adults": 470, "price_per_person": 235, "airline": "Southwest", "stops": 0 },
+      "ORD-PDX_2026-12-09_2026-12-13": { "orig": "ORD", "dest": "PDX", "price_total_2_adults": 524, "price_per_person": 262, "airline": "Alaska", "stops": 0 },
+      "ORD-HDN_2026-12-09_2026-12-13": { "orig": "ORD", "dest": "HDN", "price_total_2_adults": 736, "price_per_person": 368, "airline": "United", "stops": 1 },
+      "ORD-ASE_2026-12-09_2026-12-13": { "orig": "ORD", "dest": "ASE", "price_total_2_adults": 866, "price_per_person": 433, "airline": "American", "stops": 0 },
+      "ORD-DEN_2026-12-10_2026-12-14": { "orig": "ORD", "dest": "DEN", "price_total_2_adults": 432, "price_per_person": 216, "airline": "American", "stops": 0 },
+      "MKE-DEN_2026-12-10_2026-12-14": { "orig": "MKE", "dest": "DEN", "price_total_2_adults": 574, "price_per_person": 287, "airline": "United", "stops": 0 },
+      "ORD-PDX_2026-12-10_2026-12-14": { "orig": "ORD", "dest": "PDX", "price_total_2_adults": 548, "price_per_person": 274, "airline": "United", "stops": 0 },
+      "ORD-DEN_2026-12-16_2026-12-20": { "orig": "ORD", "dest": "DEN", "price_total_2_adults": 488, "price_per_person": 244, "airline": "United", "stops": 0 },
+      "MKE-DEN_2026-12-16_2026-12-20": { "orig": "MKE", "dest": "DEN", "price_total_2_adults": 590, "price_per_person": 295, "airline": "Southwest", "stops": 0 },
+      "ORD-HDN_2026-12-16_2026-12-20": { "orig": "ORD", "dest": "HDN", "price_total_2_adults": 698, "price_per_person": 349, "airline": "American", "stops": 0 },
+      "ORD-ASE_2026-12-16_2026-12-20": { "orig": "ORD", "dest": "ASE", "price_total_2_adults": 906, "price_per_person": 453, "airline": "United", "stops": 0 },
+      "ORD-HDN_2026-12-17_2026-12-21": { "orig": "ORD", "dest": "HDN", "price_total_2_adults": 680, "price_per_person": 340, "airline": "American", "stops": 0 },
+      "MDW-HDN_2026-12-17_2026-12-21": { "orig": "MDW", "dest": "HDN", "price_total_2_adults": 710, "price_per_person": 355, "airline": "Southwest", "stops": 0 },
+      "ORD-PDX_2026-12-17_2026-12-21": { "orig": "ORD", "dest": "PDX", "price_total_2_adults": 570, "price_per_person": 285, "airline": "Alaska", "stops": 0 }
+    };
+
+    let rawData = FALLBACK_DATA;
+    let previousSnapshot = JSON.parse(localStorage.getItem('snow_prev_snapshot_v1') || '{}');
+    let starred = JSON.parse(localStorage.getItem('snow_starred_v1') || '{}');
+
+    function parseEntries(dataObj) {
+      const rows = [];
+      for (const [key, val] of Object.entries(dataObj)) {
+        if (!val || typeof val !== 'object') continue;
+        const parts = key.split('_');
+        const routePart = parts[0] || '';
+        const dep = parts[1] || '';
+        const ret = parts[2] || '';
+        const dateKey = `${dep}_${ret}`;
+        const meta = WEEKEND_META[dateKey] || { label: `${dep} to ${ret}`, group: 'Custom', pattern: 'Custom', dep, ret };
+
+        const orig = val.orig || routePart.split('-')[0] || 'UNK';
+        const dest = val.dest || routePart.split('-')[1] || 'UNK';
+        const pp = val.price_per_person ?? Math.round((val.price_total_2_adults || 0) / 2);
+        const total2 = val.price_total_2_adults ?? (pp * 2);
+        const targetInfo = TARGETS[dest] || { name: dest, target: 300, typical: '300–500', resorts: '' };
+        const diffFromTarget = pp - targetInfo.target;
+        const prevPp = val.prev_price_per_person ?? previousSnapshot[key]?.price_per_person ?? null;
+        const delta = prevPp !== null ? (pp - prevPp) : 0;
+
+        rows.push({
+          key, orig, dest, dep: meta.dep, ret: meta.ret, dateKey,
+          weekendLabel: meta.label, weekendGroup: meta.group, pattern: meta.pattern,
+          airline: val.airline || 'Multiple', stops: val.stops ?? 0,
+          pp, total2, target: targetInfo.target, diffFromTarget, delta, prevPp
+        });
+      }
+      return rows;
+    }
+
+    function buildGoogleFlightsLink(r) {
+      const q = `Flights from ${r.orig} to ${r.dest} on ${r.dep} through ${r.ret} for 2 adults`;
+      return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`;
+    }
+
+    function renderDestCards(allRows) {
+      const grid = document.getElementById('destCardsGrid');
+      grid.innerHTML = '';
+
+      for (const [destCode, info] of Object.entries(TARGETS)) {
+        const matching = allRows.filter(r => r.dest === destCode);
+        const best = matching.length ? matching.reduce((a, b) => (a.pp < b.pp ? a : b)) : null;
+
+        const isDeal = best && best.pp <= info.target;
+        const card = document.createElement('div');
+        card.className = `rounded-lg p-3.5 border ${
+          isDeal ? 'border-emerald-500/70 bg-slate-900' : 'border-slate-800 bg-slate-900'
+        } flex flex-col justify-between space-y-2`;
+
+        if (best) {
+          card.innerHTML = `
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm">${destCode} • ${info.name.split(' (')[0]}</span>
+                <span class="px-2 py-0.5 rounded text-xs font-semibold ${
+                  isDeal ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                }">${isDeal ? '🔥 LOW PRICE' : 'Tracking'}</span>
+              </div>
+              <p class="text-xs text-slate-400 truncate mt-0.5">${info.resorts}</p>
+            </div>
+            <div class="pt-1">
+              <div class="flex items-baseline gap-2">
+                <span class="text-xl font-bold font-mono">$${best.pp}</span>
+                <span class="text-xs text-slate-400">/ person ($${best.total2} for 2)</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">
+                Best: <span class="font-semibold text-slate-100">${best.orig} → ${best.dest}</span> (${best.airline}, ${best.stops === 0 ? 'Nonstop' : '1 Stop'})
+              </p>
+              <p class="text-xs text-slate-400">
+                Dates: <span class="font-mono">${best.weekendLabel}</span>
+              </p>
+            </div>
+            <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-xs">
+              <span class="text-slate-400">Target: &le;$${info.target}</span>
+              <a href="${buildGoogleFlightsLink(best)}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-400 underline hover:opacity-80">
+                View deal ↗
+              </a>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `<div><span class="font-bold text-sm">${destCode} • ${info.name}</span><p class="text-xs text-slate-400 mt-1">No fares in current scan</p></div>`;
+        }
+        grid.appendChild(card);
+      }
+    }
+
+    function getFilteredAndSorted(allRows) {
+      const wk = document.getElementById('filterWeekend').value;
+      const pat = document.getElementById('filterPattern').value;
+      const orig = document.getElementById('filterOrig').value;
+      const dest = document.getElementById('filterDest').value;
+      const nonstop = document.getElementById('filterNonstop').checked;
+      const dealsOnly = document.getElementById('filterDealsOnly').checked;
+      const starredOnly = document.getElementById('filterStarred').checked;
+      const sortBy = document.getElementById('sortBy').value;
+
+      const filtered = allRows.filter(r => {
+        if (wk !== 'ALL' && r.dateKey !== wk) return false;
+        if (pat !== 'ALL' && r.pattern !== pat) return false;
+        if (orig !== 'ALL' && r.orig !== orig) return false;
+        if (dest !== 'ALL' && r.dest !== dest) return false;
+        if (nonstop && r.stops !== 0) return false;
+        if (dealsOnly && r.pp > r.target) return false;
+        if (starredOnly && !starred[r.key]) return false;
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (sortBy === 'price_asc') return a.pp - b.pp;
+        if (sortBy === 'deal_score') return a.diffFromTarget - b.diffFromTarget;
+        return a.dep.localeCompare(b.dep) || (a.pp - b.pp);
+      });
+
+      return filtered;
+    }
+
+    function render() {
+      const allRows = parseEntries(rawData);
+      renderDestCards(allRows);
+
+      const rows = getFilteredAndSorted(allRows);
+      const tbody = document.getElementById('flightsTableBody');
+      tbody.innerHTML = '';
+
+      document.getElementById('tableCountText').textContent =
+        `Showing ${rows.length} of ${allRows.length} tracked flight combinations`;
+
+      rows.forEach(r => {
+        const isDeal = r.pp <= r.target;
+        const isStar = !!starred[r.key];
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/50 transition';
+
+        let changeBadge = '';
+        if (r.delta < 0) {
+          changeBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">▼ Dropped $${Math.abs(r.delta)}</span>`;
+        } else if (r.delta > 0) {
+          changeBadge = `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">▲ +$${r.delta}</span>`;
+        } else if (isDeal) {
+          changeBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">🔥 $${Math.abs(r.diffFromTarget)} under target ($${r.target})</span>`;
+        } else {
+          changeBadge = `<span class="text-slate-400">$${r.diffFromTarget} over $${r.target} target</span>`;
+        }
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3">
+            <button data-star="${r.key}" class="star-btn text-sm focus:outline-none">${isStar ? '⭐' : '☆'}</button>
+          </td>
+          <td class="py-2.5 px-3 font-mono font-bold">
+            ${r.orig} <span class="text-slate-500 font-normal">→</span> ${r.dest}
+          </td>
+          <td class="py-2.5 px-3">
+            <div class="font-medium">${r.weekendLabel}</div>
+            <div class="text-slate-400">${r.weekendGroup} (${r.pattern})</div>
+          </td>
+          <td class="py-2.5 px-3">
+            <span class="font-medium">${r.airline}</span>
+            <span class="ml-1.5 px-1.5 py-0.5 rounded text-xs ${
+              r.stops === 0 ? 'bg-slate-800 text-emerald-300 font-medium' : 'text-slate-400 border border-slate-700'
+            }">${r.stops === 0 ? 'Nonstop' : r.stops + ' Stop'}</span>
+          </td>
+          <td class="py-2.5 px-3 font-mono font-bold text-sm">
+            $${r.pp}
+          </td>
+          <td class="py-2.5 px-3 font-mono text-slate-400">
+            $${r.total2}
+          </td>
+          <td class="py-2.5 px-3">
+            ${changeBadge}
+          </td>
+          <td class="py-2.5 px-3 text-right">
+            <a href="${buildGoogleFlightsLink(r)}" target="_blank" rel="noopener noreferrer"
+               class="inline-block px-2.5 py-1 rounded bg-sky-600 text-white font-medium hover:bg-sky-500">
+              Google Flights ↗
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const k = btn.getAttribute('data-star');
+          if (starred[k]) delete starred[k];
+          else starred[k] = true;
+          localStorage.setItem('snow_starred_v1', JSON.stringify(starred));
+          render();
+        });
+      });
+    }
+
+    async function loadLive() {
+      const badge = document.getElementById('dataSourceBadge');
+      render();
+      const urls = [
+        `./price_history.json?t=${Date.now()}`,
+        `https://raw.githubusercontent.com/colleywolley/snowboard-flight-scanner/main/price_history.json?t=${Date.now()}`
+      ];
+      for (const url of urls) {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json && Object.keys(json).length > 0) {
+              rawData = { ...FALLBACK_DATA, ...json };
+              badge.textContent = '🟢 Live Connected (price_history.json)';
+              render();
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      badge.textContent = '🟢 Baseline Active (Auto-merges price_history.json every 6h)';
+      render();
+    }
+
+    ['filterWeekend', 'filterPattern', 'filterOrig', 'filterDest', 'filterNonstop', 'filterDealsOnly', 'filterStarred', 'sortBy'].forEach(id => {
+      document.getElementById(id).addEventListener('change', render);
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadLive);
+
+    document.getElementById('shareAlexBtn').addEventListener('click', () => {
+      const allRows = parseEntries(rawData);
+      const rows = getFilteredAndSorted(allRows).slice(0, 6);
+      const lines = [
+        '🏂 Top Snowboarding Flight Deals (2 Adults - Round Trip):',
+        ...rows.map(r => `• ${r.orig} → ${r.dest} (${r.weekendLabel}): $${r.pp}/person ($${r.total2} total) on ${r.airline} (${r.stops === 0 ? 'Nonstop' : '1 Stop'}) — ${buildGoogleFlightsLink(r)}`)
+      ];
+      navigator.clipboard.writeText(lines.join('\n')).then(() => {
+        const btn = document.getElementById('shareAlexBtn');
+        const old = btn.textContent;
+        btn.textContent = '✅ Copied Top 6 Deals!';
+        setTimeout(() => { btn.textContent = old; }, 1800);
+      });
+    });
+
+    loadLive();
+    setInterval(loadLive, 15 * 60 * 1000);
+  </script>
+</body>
+</html>

@@ -20,7 +20,7 @@ jobs:
 
       - name: Run 6-Hour Flight Scanner
         env:
-          SERPAPI_KEY: ${{ secrets.6aee5b122985bd822b3a6da169c67958c47df16f7258ab47f61d1346481e718c }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: python3 flight_price_scanner.py
 

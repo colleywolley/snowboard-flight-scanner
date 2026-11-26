@@ -2,10 +2,10 @@
   "ORD-DEN_2026-12-02_2026-12-06": {
     "orig": "ORD",
     "dest": "DEN",
-    "price_total_2_adults": 400,
-    "price_per_person": 200,
+    "price_total_2_adults": 728,
+    "price_per_person": 364,
     "airline": "Frontier",
-    "stops": 1
+    "stops": 0
   },
   "ORD-HDN_2026-12-02_2026-12-06": {
     "orig": "ORD",
@@ -18,32 +18,32 @@
   "ORD-ASE_2026-12-02_2026-12-06": {
     "orig": "ORD",
     "dest": "ASE",
-    "price_total_2_adults": 1338,
-    "price_per_person": 669,
+    "price_total_2_adults": 1354,
+    "price_per_person": 677,
     "airline": "United",
     "stops": 0
   },
   "MDW-DEN_2026-12-02_2026-12-06": {
     "orig": "MDW",
     "dest": "DEN",
-    "price_total_2_adults": 400,
-    "price_per_person": 200,
+    "price_total_2_adults": 738,
+    "price_per_person": 369,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-PDX_2026-12-02_2026-12-06": {
     "orig": "ORD",
     "dest": "PDX",
-    "price_total_2_adults": 857,
-    "price_per_person": 428,
+    "price_total_2_adults": 925,
+    "price_per_person": 462,
     "airline": "United",
     "stops": 0
   },
   "MKE-DEN_2026-12-02_2026-12-06": {
     "orig": "MKE",
     "dest": "DEN",
-    "price_total_2_adults": 1145,
-    "price_per_person": 572,
+    "price_total_2_adults": 1960,
+    "price_per_person": 980,
     "airline": "Southwest",
     "stops": 0
   },
@@ -58,8 +58,8 @@
   "ORD-DEN_2026-12-03_2026-12-07": {
     "orig": "ORD",
     "dest": "DEN",
-    "price_total_2_adults": 480,
-    "price_per_person": 240,
+    "price_total_2_adults": 760,
+    "price_per_person": 380,
     "airline": "Frontier",
     "stops": 1
   },
@@ -82,24 +82,24 @@
   "MDW-DEN_2026-12-03_2026-12-07": {
     "orig": "MDW",
     "dest": "DEN",
-    "price_total_2_adults": 480,
-    "price_per_person": 240,
+    "price_total_2_adults": 760,
+    "price_per_person": 380,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-PDX_2026-12-03_2026-12-07": {
     "orig": "ORD",
     "dest": "PDX",
-    "price_total_2_adults": 640,
-    "price_per_person": 320,
+    "price_total_2_adults": 776,
+    "price_per_person": 388,
     "airline": "Frontier",
     "stops": 1
   },
   "MKE-DEN_2026-12-03_2026-12-07": {
     "orig": "MKE",
     "dest": "DEN",
-    "price_total_2_adults": 1134,
-    "price_per_person": 567,
+    "price_total_2_adults": 1273,
+    "price_per_person": 636,
     "airline": "Southwest",
     "stops": 0
   },
@@ -114,40 +114,40 @@
   "ORD-DEN_2026-12-09_2026-12-13": {
     "orig": "ORD",
     "dest": "DEN",
-    "price_total_2_adults": 388,
-    "price_per_person": 194,
+    "price_total_2_adults": 528,
+    "price_per_person": 264,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-HDN_2026-12-09_2026-12-13": {
     "orig": "ORD",
     "dest": "HDN",
-    "price_total_2_adults": 897,
-    "price_per_person": 448,
+    "price_total_2_adults": 997,
+    "price_per_person": 498,
     "airline": "United",
     "stops": 1
   },
   "MDW-DEN_2026-12-09_2026-12-13": {
     "orig": "MDW",
     "dest": "DEN",
-    "price_total_2_adults": 558,
-    "price_per_person": 279,
+    "price_total_2_adults": 698,
+    "price_per_person": 349,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-PDX_2026-12-09_2026-12-13": {
     "orig": "ORD",
     "dest": "PDX",
-    "price_total_2_adults": 857,
-    "price_per_person": 428,
+    "price_total_2_adults": 925,
+    "price_per_person": 462,
     "airline": "United",
     "stops": 0
   },
   "MKE-DEN_2026-12-09_2026-12-13": {
     "orig": "MKE",
     "dest": "DEN",
-    "price_total_2_adults": 1238,
-    "price_per_person": 619,
+    "price_total_2_adults": 1512,
+    "price_per_person": 756,
     "airline": "Southwest",
     "stops": 0
   },
@@ -162,16 +162,16 @@
   "ORD-ASE_2026-12-09_2026-12-13": {
     "orig": "ORD",
     "dest": "ASE",
-    "price_total_2_adults": 1138,
-    "price_per_person": 569,
+    "price_total_2_adults": 1238,
+    "price_per_person": 619,
     "airline": "United",
     "stops": 0
   },
   "ORD-DEN_2026-12-10_2026-12-14": {
     "orig": "ORD",
     "dest": "DEN",
-    "price_total_2_adults": 388,
-    "price_per_person": 194,
+    "price_total_2_adults": 488,
+    "price_per_person": 244,
     "airline": "Frontier",
     "stops": 1
   },
@@ -194,16 +194,16 @@
   "MDW-DEN_2026-12-10_2026-12-14": {
     "orig": "MDW",
     "dest": "DEN",
-    "price_total_2_adults": 638,
-    "price_per_person": 319,
+    "price_total_2_adults": 738,
+    "price_per_person": 369,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-PDX_2026-12-10_2026-12-14": {
     "orig": "ORD",
     "dest": "PDX",
-    "price_total_2_adults": 640,
-    "price_per_person": 320,
+    "price_total_2_adults": 776,
+    "price_per_person": 388,
     "airline": "Frontier",
     "stops": 1
   },
@@ -226,10 +226,10 @@
   "ORD-DEN_2026-12-16_2026-12-20": {
     "orig": "ORD",
     "dest": "DEN",
-    "price_total_2_adults": 388,
-    "price_per_person": 194,
+    "price_total_2_adults": 402,
+    "price_per_person": 201,
     "airline": "Frontier",
-    "stops": 1
+    "stops": 0
   },
   "MKE-HDN_2026-12-16_2026-12-20": {
     "orig": "MKE",
@@ -242,40 +242,40 @@
   "MKE-DEN_2026-12-16_2026-12-20": {
     "orig": "MKE",
     "dest": "DEN",
-    "price_total_2_adults": 569,
-    "price_per_person": 284,
-    "airline": "United",
+    "price_total_2_adults": 931,
+    "price_per_person": 466,
+    "airline": "Southwest",
     "stops": 0
   },
   "MDW-DEN_2026-12-16_2026-12-20": {
     "orig": "MDW",
     "dest": "DEN",
-    "price_total_2_adults": 460,
-    "price_per_person": 230,
+    "price_total_2_adults": 555,
+    "price_per_person": 278,
     "airline": "Frontier",
     "stops": 1
   },
   "ORD-PDX_2026-12-16_2026-12-20": {
     "orig": "ORD",
     "dest": "PDX",
-    "price_total_2_adults": 769,
-    "price_per_person": 384,
-    "airline": "United",
+    "price_total_2_adults": 1010,
+    "price_per_person": 505,
+    "airline": "Alaska",
     "stops": 0
   },
   "MDW-PDX_2026-12-16_2026-12-20": {
     "orig": "MDW",
     "dest": "PDX",
-    "price_total_2_adults": 854,
-    "price_per_person": 427,
+    "price_total_2_adults": 1014,
+    "price_per_person": 507,
     "airline": "Southwest",
     "stops": 0
   },
   "ORD-ASE_2026-12-16_2026-12-20": {
     "orig": "ORD",
     "dest": "ASE",
-    "price_total_2_adults": 1018,
-    "price_per_person": 509,
+    "price_total_2_adults": 1078,
+    "price_per_person": 539,
     "airline": "United",
     "stops": 0
   },
@@ -306,8 +306,8 @@
   "MKE-DEN_2026-12-17_2026-12-21": {
     "orig": "MKE",
     "dest": "DEN",
-    "price_total_2_adults": 587,
-    "price_per_person": 294,
+    "price_total_2_adults": 594,
+    "price_per_person": 297,
     "airline": "Southwest",
     "stops": 0
   },
@@ -378,8 +378,8 @@
   "ORD-HDN_2026-12-16_2026-12-20": {
     "orig": "ORD",
     "dest": "HDN",
-    "price_total_2_adults": 778,
-    "price_per_person": 389,
+    "price_total_2_adults": 828,
+    "price_per_person": 414,
     "airline": "United",
     "stops": 1
   },
